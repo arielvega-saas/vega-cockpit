@@ -35,10 +35,31 @@
   button{font:inherit;color:inherit;cursor:pointer}
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
 
-  header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:18px}
   h1{font-size:21px;margin:0;letter-spacing:-.02em}
   .sub{font-size:12.5px;color:var(--muted)}
   .ghost{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:13px}
+
+  /* La marca arriba de todo: es lo que hace que se sienta un producto. */
+  .marca{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .marca img{width:24px;height:24px;border-radius:6px;display:block}
+  .marca span{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:-.01em}
+
+  /* Título de bloque: separa visualmente para que no aparezca todo junto. */
+  .rot{font-size:11px;text-transform:uppercase;letter-spacing:.09em;font-weight:800;color:var(--muted);margin:22px 0 9px;padding-left:3px}
+  .rot.rojo{color:var(--stop)}
+
+  .nums{display:flex;gap:9px;margin-bottom:4px}
+  .num{flex:1;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 6px;text-align:center;box-shadow:var(--shadow)}
+  .num b{display:block;font-size:27px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .num span{font-size:11.5px;color:var(--muted)}
+
+  .ag{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line)}
+  .ag:last-child{border-bottom:none}
+  .ag .ic{font-size:13px;line-height:1.5;width:17px;flex:none;text-align:center}
+  .ag b{display:block;font-size:14.5px;font-weight:500}
+  .ag .cuando{font-size:12px;font-weight:700;color:var(--muted)}
+  .ag .cuando.venc{color:var(--stop)}
 
   .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:var(--safe-b);z-index:20}
   .tabs button{flex:1;background:none;border:none;padding:11px 4px 9px;font-size:11px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -104,30 +125,64 @@ const cache = {
   get: k => { try { return JSON.parse(localStorage.getItem("vc_" + k)); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem("vc_" + k, JSON.stringify(v)); } catch {} }
 };
-let vista = "hoy", datos = { pendientes: [], proyectos: [], enlaces: [] }, filtro = null;
+let vista = "hoy", filtro = null;
+let datos = { pendientes: [], proyectos: [], enlaces: [], recordatorios: [], ordenes: [] };
 
 function toast(t){ const e = $("toast"); e.textContent = t; e.classList.add("on"); setTimeout(()=>e.classList.remove("on"), 2600); }
 
 const ETIQ = { publicado:"Publicado", entregado:"Entregado", vivo:"En uso", "listo-sin-lanzar":"Listo, sin lanzar",
   parcial:"A medias", prototipo:"Prototipo", parking:"En pausa", cerrado:"Cerrado" };
 
+const MARCA = `<div class="marca"><img src="icono-192.png" alt=""><span>Vega Cockpit</span></div>`;
+
+/* Cuánto falta, en castellano. Mismo criterio que la app de iPhone. */
+function relativa(iso){
+  if (!iso) return "";
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const d = new Date(iso.length <= 10 ? iso + "T00:00:00" : iso);
+  const dd = new Date(d); dd.setHours(0,0,0,0);
+  const dias = Math.round((dd - hoy) / 86400000);
+  if (dias < 0) return `vencido hace ${-dias} d`;
+  if (dias === 0) return "hoy";
+  if (dias === 1) return "mañana";
+  if (dias < 7) return `en ${dias} días`;
+  return d.toLocaleDateString("es-AR", { day:"numeric", month:"short" });
+}
+
+/* Todo lo que tiene fecha, junto y ordenado: eso es la Agenda. */
+function agenda(){
+  const items = [];
+  datos.pendientes.filter(p => p.estado === "abierto" && p.vence).forEach(p =>
+    items.push({ id:"p-"+p.id, titulo:p.titulo, detalle:p.sistema || "", fecha:p.vence, rec:false }));
+  (datos.recordatorios || []).filter(r => !r.hecho).forEach(r =>
+    items.push({ id:"r-"+r.id, titulo:r.titulo, detalle:r.nota || "Recordatorio", fecha:r.cuando, rec:true }));
+  return items.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+}
+
 /* ---------- datos ---------- */
 async function cargar(){
-  const [p, pr, en] = await Promise.all([
+  const [p, pr, en, re, or_] = await Promise.all([
     sb.from("pendientes").select("*").order("urgencia").order("id"),
     sb.from("proyectos").select("*").order("destacado", { ascending:false }).order("nombre"),
-    sb.from("enlaces").select("*").order("seccion").order("orden")
+    sb.from("enlaces").select("*").order("seccion").order("orden"),
+    sb.from("recordatorios").select("*").order("cuando"),
+    sb.from("ordenes").select("*").order("aprobada_en", { ascending:false })
   ]);
   if (p.error || pr.error) { $("off").hidden = false; const c = cache.get("datos"); if (c) datos = c; return; }
-  datos = { pendientes: p.data || [], proyectos: pr.data || [], enlaces: en.data || [] };
+  datos = { pendientes: p.data || [], proyectos: pr.data || [], enlaces: en.data || [],
+            recordatorios: re.data || [], ordenes: or_.data || [] };
   cache.set("datos", datos); $("off").hidden = true;
   insignia();
 }
 
+const ordenesActivas = () => (datos.ordenes || []).filter(o => o.estado === "aprobada" || o.estado === "en_curso");
+
 /* Globito rojo en el ícono con las decisiones urgentes sin resolver.
    Solo funciona con la app agregada a la pantalla de inicio. */
 function insignia(){
-  const n = datos.pendientes.filter(x => x.estado === "abierto" && x.urgencia === "alta").length;
+  const urg = datos.pendientes.filter(x => x.estado === "abierto" && x.urgencia === "alta").length;
+  const venc = agenda().filter(i => relativa(i.fecha).startsWith("vencido")).length;
+  const n = urg + venc;
   try { n ? navigator.setAppBadge?.(n) : navigator.clearAppBadge?.(); } catch {}
 }
 
@@ -138,42 +193,104 @@ function vHoy(){
   abiertos.sort((a,b) => (orden[a.urgencia] ?? 3) - (orden[b.urgencia] ?? 3));
   const alta = abiertos.filter(x => x.urgencia === "alta");
   const bloq = datos.proyectos.filter(x => (x.bloqueantes || []).length).length;
+  const ya = agenda().filter(i => ["hoy","mañana"].includes(relativa(i.fecha)) || relativa(i.fecha).startsWith("vencido"));
 
-  let h = `<header><div><h1>Hoy</h1><div class="sub">${abiertos.length} decisiones abiertas · ${bloq} proyectos con bloqueo</div></div>
-    <button class="ghost" id="recargar">↻</button></header>`;
+  let h = `${MARCA}<header><div><h1>Hoy</h1></div>
+    <button class="ghost" id="recargar">↻</button></header>
+    <div class="nums">
+      <div class="num"><b style="color:${alta.length?"var(--stop)":"var(--muted)"}">${alta.length}</b><span>urgentes</span></div>
+      <div class="num"><b style="color:var(--accent)">${abiertos.length}</b><span>abiertos</span></div>
+      <div class="num"><b style="color:${bloq?"var(--warn)":"var(--muted)"}">${bloq}</b><span>bloqueados</span></div>
+    </div>`;
 
-  if (alta.length) {
-    h += `<div class="sub" style="margin:14px 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--stop)">Urgente</div>`;
-    alta.forEach(p => h += tarjetaPend(p));
+  if (ya.length) {
+    h += `<div class="rot rojo">Vence ya</div><div class="card">${ya.slice(0,5).map(filaAgenda).join("")}</div>`;
   }
-  const resto = abiertos.filter(x => x.urgencia !== "alta").slice(0, 6);
+  if (alta.length) {
+    h += `<div class="rot rojo">Decisiones urgentes</div>`;
+    alta.slice(0, 3).forEach(p => h += tarjetaPend(p));
+  }
+  const act = ordenesActivas();
+  if (act.length) {
+    h += `<div class="rot">La IA está trabajando en</div><div class="card">${act.slice(0,5).map(filaOrden).join("")}</div>`;
+  }
+  const resto = abiertos.filter(x => x.urgencia !== "alta").slice(0, 5);
   if (resto.length) {
-    h += `<div class="sub" style="margin:20px 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700">Después</div>`;
+    h += `<div class="rot">Después</div>`;
     resto.forEach(p => h += tarjetaPend(p));
   }
-  if (!abiertos.length) h += `<div class="vacio">Nada pendiente. Raro y hermoso.</div>`;
+  if (!abiertos.length && !ya.length) h += `<div class="vacio">Nada urgente. Raro y hermoso.</div>`;
   return h;
+}
+
+function filaAgenda(i){
+  const c = relativa(i.fecha), venc = c.startsWith("vencido");
+  return `<div class="ag"><span class="ic">${i.rec ? "🔔" : "🚩"}</span>
+    <span style="flex:1;min-width:0"><b>${esc(i.titulo)}</b>
+    <span class="cuando ${venc?"venc":""}">${esc(c)}</span>${i.detalle ? ` <span class="sub">· ${esc(i.detalle)}</span>` : ""}</span>
+    ${i.rec ? `<button class="ghost" data-hecho="${esc(i.id.slice(2))}" style="padding:4px 9px">✓</button>` : ""}</div>`;
+}
+
+function filaOrden(o){
+  return `<div class="ag"><span class="ic">${o.estado === "en_curso" ? "⚙️" : "⏳"}</span>
+    <span style="flex:1;min-width:0"><b>${esc(o.titulo)}</b>
+    <span class="cuando">${o.estado === "en_curso" ? "En curso" : "Esperando a la IA"}</span></span></div>`;
 }
 
 function tarjetaPend(p){
   const ops = (p.opciones || []).map(o => `<div class="op"><b>${esc(o.opcion)}</b><span>${esc(o.implica)}</span></div>`).join("");
   return `<div class="card" data-pid="${esc(p.id)}">
-    <div class="meta"><span class="pill u-${esc(p.urgencia)}">${esc(p.urgencia)}</span><span>${esc(p.sistema||"")}</span></div>
+    <div class="meta"><span class="pill u-${esc(p.urgencia)}">${esc(p.urgencia)}</span><span>${esc(p.sistema||"")}</span>
+      ${p.vence ? `<span class="pill" style="color:var(--warn)">${esc(relativa(p.vence))}</span>` : ""}</div>
     <h3 style="margin-top:7px">${esc(p.titulo)}</h3>
     <div class="ctx" data-ctx>${esc(p.contexto)}</div>
     ${p.recomendacion ? `<div class="op" style="margin-top:10px"><b>Recomendación</b><span>${esc(p.recomendacion)}</span></div>` : ""}
     ${ops}
     <div class="acc">
-      <button class="btn" data-resolver="${esc(p.id)}">Decidir</button>
-      <button class="btn sec" data-nota="${esc(p.id)}">Nota</button>
+      <button class="btn" data-aprobar="${esc(p.id)}">Aprobar y que se trabaje</button>
+      <button class="btn sec" data-resolver="${esc(p.id)}">Solo decidir</button>
     </div>
   </div>`;
+}
+
+/* ---------- agenda ---------- */
+function vAgenda(){
+  const items = agenda();
+  let h = `${MARCA}<header><div><h1>Agenda</h1><div class="sub">${items.length} con fecha</div></div>
+    <button class="ghost" id="nuevaAlerta">+ Alerta</button></header>`;
+  if (!items.length) return h + `<div class="vacio">Nada agendado.<br>Creá una alerta con “+ Alerta”.</div>`;
+
+  let clave = null, abierto = false;
+  items.forEach(i => {
+    const c = relativa(i.fecha);
+    if (c !== clave) {
+      if (abierto) h += `</div>`;
+      h += `<div class="rot ${c.startsWith("vencido")||c==="hoy"?"rojo":""}">${esc(c)}</div><div class="card">`;
+      clave = c; abierto = true;
+    }
+    h += filaAgenda(i);
+  });
+  if (abierto) h += `</div>`;
+  return h;
+}
+
+async function nuevaAlerta(){
+  const titulo = prompt("¿De qué te aviso?");
+  if (titulo === null || !titulo.trim()) return;
+  const cuando = prompt("¿Cuándo? (dd/mm o dd/mm/aaaa)", new Date(Date.now()+86400000).toLocaleDateString("es-AR"));
+  if (cuando === null) return;
+  const [d, m, a] = cuando.split("/").map(x => parseInt(x, 10));
+  if (!d || !m) return toast("Fecha no entendida");
+  const f = new Date(a || new Date().getFullYear(), m - 1, d, 9, 0, 0);
+  const { error } = await sb.from("recordatorios").insert({ titulo: titulo.trim(), cuando: f.toISOString(), repetir: "no" });
+  if (error) return toast("No se pudo: " + error.message);
+  toast("Alerta creada ✓"); await cargar(); render();
 }
 
 function vPend(){
   const est = filtro || "abierto";
   const lista = datos.pendientes.filter(x => est === "todos" ? true : x.estado === est);
-  let h = `<header><div><h1>Pendientes</h1><div class="sub">${lista.length} en vista</div></div></header>
+  let h = `${MARCA}<header><div><h1>Decisiones</h1><div class="sub">${lista.length} en vista</div></div></header>
     <div class="filtros">
       ${["abierto","resuelto","todos"].map(f => `<button data-f="${f}" class="${est===f?"on":""}">${f}</button>`).join("")}
     </div>`;
@@ -184,7 +301,7 @@ function vPend(){
 function vProy(){
   const cats = [...new Set(datos.proyectos.map(p => p.categoria))];
   const lista = filtro ? datos.proyectos.filter(p => p.categoria === filtro) : datos.proyectos;
-  let h = `<header><div><h1>Proyectos</h1><div class="sub">${datos.proyectos.length} en el ecosistema</div></div></header>
+  let h = `${MARCA}<header><div><h1>Proyectos</h1><div class="sub">${datos.proyectos.length} en el ecosistema</div></div></header>
     <div class="filtros"><button data-c="" class="${!filtro?"on":""}">todos</button>
     ${cats.map(c => `<button data-c="${esc(c)}" class="${filtro===c?"on":""}">${esc(c)}</button>`).join("")}</div>`;
   h += lista.map(p => {
@@ -199,6 +316,7 @@ function vProy(){
       ${falta.length ? `<div class="op" style="margin-top:8px"><b>Falta</b><span>${falta.map(esc).join(" · ")}</span></div>` : ""}
       ${p.siguiente_paso ? `<div class="op" style="margin-top:8px"><b>Siguiente</b><span>${esc(p.siguiente_paso)}</span></div>` : ""}
       ${(p.links||[]).filter(l=>l.url?.startsWith("http")).map(l=>`<div style="margin-top:9px"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.titulo)} ↗</a></div>`).join("")}
+      <div class="acc"><button class="btn sec" data-pedir="${esc(p.id)}">Pedirle esto a la IA</button></div>
     </div>`;
   }).join("");
   return h;
@@ -206,8 +324,17 @@ function vProy(){
 
 function vLinks(){
   const secs = [...new Set(datos.enlaces.map(e => e.seccion))];
-  let h = `<header><div><h1>Accesos</h1><div class="sub">Todo lo mío</div></div>
+  let h = `${MARCA}<header><div><h1>Más</h1><div class="sub">Órdenes y accesos</div></div>
     <button class="ghost" id="tema">◐</button></header>`;
+
+  const act = ordenesActivas(), hechas = (datos.ordenes || []).filter(o => o.estado === "hecha").slice(0, 6);
+  if (act.length) h += `<div class="rot">Órdenes a la IA</div><div class="card">${act.map(filaOrden).join("")}</div>`;
+  if (hechas.length) {
+    h += `<div class="rot">Ya hechas</div><div class="card">${hechas.map(o =>
+      `<div class="ag"><span class="ic">✓</span><span style="flex:1;min-width:0"><b>${esc(o.titulo)}</b>
+       ${o.resultado ? `<span class="sub">${esc(o.resultado)}</span>` : ""}</span></div>`).join("")}</div>`;
+  }
+
   secs.forEach(s => {
     h += `<div class="sub" style="margin:18px 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700">${esc(s)}</div>`;
     datos.enlaces.filter(e => e.seccion === s).forEach(e => {
@@ -223,11 +350,14 @@ function vLinks(){
 
 /* ---------- render ---------- */
 function render(){
-  $("app").innerHTML = { hoy:vHoy, pendientes:vPend, proyectos:vProy, links:vLinks }[vista]();
+  $("app").innerHTML = { hoy:vHoy, agenda:vAgenda, pendientes:vPend, proyectos:vProy, links:vLinks }[vista]();
   $("tabs").hidden = false;
-  $("tabs").innerHTML = [["hoy","🎯","Hoy"],["pendientes","📋","Pendientes"],["proyectos","🗂️","Proyectos"],["links","🔗","Accesos"]]
-    .map(([k,i,t]) => `<button data-v="${k}" class="${vista===k?"on":""}"><span class="i">${i}</span>${t}</button>`).join("");
+  const act = ordenesActivas().length;
+  $("tabs").innerHTML = [["hoy","🎯","Hoy"],["agenda","📅","Agenda"],["pendientes","📋","Decisiones"],
+                         ["proyectos","🗂️","Proyectos"],["links","🔗","Más"]]
+    .map(([k,i,t]) => `<button data-v="${k}" class="${vista===k?"on":""}"><span class="i">${i}</span>${t}${k==="links"&&act?` <span style="color:var(--accent)">•</span>`:""}</button>`).join("");
   cablear();
+  scrollTo(0, 0);
 }
 
 function cablear(){
@@ -236,18 +366,21 @@ function cablear(){
   document.querySelectorAll("[data-c]").forEach(b => b.onclick = () => { filtro = b.dataset.c || null; render(); });
   document.querySelectorAll("[data-ctx]").forEach(e => e.onclick = () => e.classList.toggle("open"));
   const r = $("recargar"); if (r) r.onclick = async () => { r.textContent = "…"; await cargar(); render(); toast("Actualizado"); };
+  const na = $("nuevaAlerta"); if (na) na.onclick = nuevaAlerta;
   const t = $("tema"); if (t) t.onclick = () => {
     const el = document.documentElement, a = el.getAttribute("data-t");
     const osc = matchMedia("(prefers-color-scheme: dark)").matches;
     el.setAttribute("data-t", a === "dark" ? "light" : a === "light" ? (osc?"dark":"light") : (osc?"light":"dark"));
   };
   document.querySelectorAll("[data-resolver]").forEach(b => b.onclick = () => resolver(b.dataset.resolver));
-  document.querySelectorAll("[data-nota]").forEach(b => b.onclick = () => nota(b.dataset.nota));
+  document.querySelectorAll("[data-aprobar]").forEach(b => b.onclick = () => aprobar(b.dataset.aprobar));
+  document.querySelectorAll("[data-pedir]").forEach(b => b.onclick = () => pedir(b.dataset.pedir));
+  document.querySelectorAll("[data-hecho]").forEach(b => b.onclick = () => marcarHecho(b.dataset.hecho));
 }
 
 async function resolver(id){
   const p = datos.pendientes.find(x => x.id === id);
-  const r = prompt(`${p.titulo}\n\n¿Qué decidiste?`, p.recomendacion || "");
+  const r = prompt(`${p.titulo}\n\n¿Qué decidís?`, p.recomendacion || "");
   if (r === null || !r.trim()) return;
   const { error } = await sb.from("pendientes").update({
     estado: "resuelto", respuesta: r.trim(), respondido_el: new Date().toISOString().slice(0,10), actualizado_en: new Date().toISOString()
@@ -256,11 +389,39 @@ async function resolver(id){
   toast("Decidido ✓"); await cargar(); render();
 }
 
-async function nota(id){
-  const t = prompt("Nota rápida:");
+/* Aprobar = decidir Y dejar la orden para que la IA arranque sola en la Mac.
+   El autosync la baja a estado/ORDENES-ABIERTAS.md del harness. */
+async function aprobar(id){
+  const p = datos.pendientes.find(x => x.id === id);
+  const r = prompt(`${p.titulo}\n\n¿Qué aprobás? La IA lo toma y lo hace.`, p.recomendacion || "");
+  if (r === null || !r.trim()) return;
+  const { error } = await sb.from("ordenes").insert({
+    titulo: p.titulo, instruccion: `Decisión de Ariel: ${r.trim()}\n\nContexto: ${p.contexto || ""}`,
+    origen_tipo: "pendiente", origen_id: id, prioridad: p.urgencia === "alta" ? "alta" : "normal", estado: "aprobada"
+  });
+  if (error) return toast("No se pudo: " + error.message);
+  await sb.from("pendientes").update({
+    estado: "resuelto", respuesta: r.trim(), respondido_el: new Date().toISOString().slice(0,10)
+  }).eq("id", id);
+  toast("Aprobado ✓ La IA lo toma"); await cargar(); render();
+}
+
+async function pedir(proyectoId){
+  const p = datos.proyectos.find(x => x.id === proyectoId);
+  const t = prompt(`${p.nombre}\n\n¿Qué querés que haga la IA?`, p.siguiente_paso || "");
   if (t === null || !t.trim()) return;
-  const { error } = await sb.from("notas").insert({ ref_tipo: "pendiente", ref_id: id, texto: t.trim() });
-  toast(error ? "No se pudo guardar" : "Nota guardada ✓");
+  const { error } = await sb.from("ordenes").insert({
+    titulo: `${p.nombre}: ${t.trim().slice(0,60)}`, instruccion: t.trim(),
+    origen_tipo: "proyecto", origen_id: proyectoId, estado: "aprobada"
+  });
+  if (error) return toast("No se pudo: " + error.message);
+  toast("Orden dejada ✓"); await cargar(); render();
+}
+
+async function marcarHecho(id){
+  const { error } = await sb.from("recordatorios").update({ hecho: true }).eq("id", id);
+  if (error) return toast("No se pudo");
+  toast("Listo ✓"); await cargar(); render();
 }
 
 /* ---------- auth ---------- */
@@ -270,7 +431,8 @@ async function nota(id){
 function login(msg){
   $("tabs").hidden = true;
   $("app").innerHTML = `<div class="login">
-    <h1>🎛️ Vega Cockpit</h1>
+    <img src="icono-192.png" alt="" style="width:76px;height:76px;border-radius:18px;margin-bottom:14px">
+    <h1>Vega Cockpit</h1>
     <p>${msg || "Todo tu ecosistema en un solo lugar."}</p>
     <input id="mail" type="email" inputmode="email" autocomplete="username" placeholder="mail" value="vegaariel976@gmail.com">
     <input id="clave" type="password" autocomplete="current-password" placeholder="contraseña" style="margin-top:10px">
