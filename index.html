@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vega Cockpit</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cockpit">
+<meta name="theme-color" content="#141613">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23141613'/%3E%3Ctext x='90' y='122' font-size='96' text-anchor='middle'%3E%F0%9F%8E%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#FAFAF7; --card:#FFF; --card2:#F0F0EA; --ink:#191B18; --muted:#6B6F68;
+    --line:#E3E3DA; --accent:#2F6F4F; --warn:#9A6C15; --stop:#9C4433; --info:#2C5F8A;
+    --shadow:0 1px 2px rgba(0,0,0,.04),0 6px 16px rgba(0,0,0,.05);
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-t="light"]){
+    --bg:#141613; --card:#1D201B; --card2:#252922; --ink:#ECEFE9; --muted:#9AA096;
+    --line:#2F342C; --accent:#63BC8C; --warn:#D6A544; --stop:#D08A7A; --info:#7FB0DC;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 16px rgba(0,0,0,.25);
+  }}
+  :root[data-t="dark"]{
+    --bg:#141613; --card:#1D201B; --card2:#252922; --ink:#ECEFE9; --muted:#9AA096;
+    --line:#2F342C; --accent:#63BC8C; --warn:#D6A544; --stop:#D08A7A; --info:#7FB0DC;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 16px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+  .wrap{max-width:780px;margin:0 auto;padding:20px 15px calc(90px + var(--safe-b))}
+  a{color:var(--info);text-decoration:none}
+  button{font:inherit;color:inherit;cursor:pointer}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+
+  header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px}
+  h1{font-size:21px;margin:0;letter-spacing:-.02em}
+  .sub{font-size:12.5px;color:var(--muted)}
+  .ghost{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:13px}
+
+  .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:var(--safe-b);z-index:20}
+  .tabs button{flex:1;background:none;border:none;padding:11px 4px 9px;font-size:11px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+  .tabs button .i{font-size:19px;line-height:1}
+  .tabs button.on{color:var(--accent);font-weight:700}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 15px;margin-bottom:10px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 4px;font-size:16px;letter-spacing:-.01em}
+  .meta{font-size:12.5px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .pill{font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;background:var(--card2);white-space:nowrap}
+  .u-alta{color:#fff;background:var(--stop)} .u-media{background:var(--card2);color:var(--warn)} .u-baja{background:var(--card2);color:var(--muted)}
+  .ctx{font-size:14px;color:var(--muted);margin-top:9px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .ctx.open{-webkit-line-clamp:unset}
+  .acc{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:9px 14px;font-size:14px;font-weight:600}
+  .btn.sec{background:var(--card2);color:var(--ink)}
+  @media (prefers-color-scheme:dark){:root:not([data-t="light"]) .btn{color:#141613}}
+  :root[data-t="dark"] .btn{color:#141613}
+
+  .op{background:var(--card2);border-radius:9px;padding:10px 12px;margin-top:8px;font-size:14px}
+  .op b{display:block;margin-bottom:2px}
+  .op span{color:var(--muted);font-size:13px}
+
+  .bar{height:4px;background:var(--card2);border-radius:99px;overflow:hidden;margin-top:9px}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  .e-publicado,.e-entregado,.e-vivo{color:var(--accent)} .e-listo-sin-lanzar{color:var(--info)}
+  .e-parcial,.e-prototipo{color:var(--warn)} .e-parking{color:var(--muted)} .e-cerrado{color:var(--stop)}
+
+  .filtros{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}
+  .filtros button{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 13px;font-size:13.5px;white-space:nowrap}
+  .filtros button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+  input,textarea{width:100%;padding:12px 13px;font:inherit;font-size:15px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px}
+  textarea{min-height:92px;resize:vertical}
+  label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:14px 0 6px;font-weight:700}
+
+  .vacio{text-align:center;color:var(--muted);padding:46px 18px}
+  .toast{position:fixed;left:50%;bottom:calc(78px + var(--safe-b));transform:translateX(-50%) translateY(70px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13.5px;transition:transform .22s;z-index:40;max-width:92vw;text-align:center}
+  .toast.on{transform:translateX(-50%)}
+  .login{max-width:380px;margin:14vh auto;text-align:center;padding:0 18px}
+  .login h1{font-size:27px;margin-bottom:6px}
+  .login p{color:var(--muted);font-size:14.5px;margin-bottom:22px}
+  .off{background:var(--warn);color:#fff;text-align:center;font-size:12.5px;padding:5px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="off" class="off" hidden>Sin conexión — mostrando lo último guardado</div>
+<div id="app" class="wrap"></div>
+<nav class="tabs" id="tabs" hidden></nav>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = "https://ffepyfnyitacltnayvua.supabase.co";
+const SUPABASE_KEY = "sb_publishable_qq_yAMy2q_F5C8bqLsCi_A_FoIesFsk";
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = id => document.getElementById(id);
+const esc = s => (s ?? "").toString().replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const cache = {
+  get: k => { try { return JSON.parse(localStorage.getItem("vc_" + k)); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem("vc_" + k, JSON.stringify(v)); } catch {} }
+};
+let vista = "hoy", datos = { pendientes: [], proyectos: [], enlaces: [] }, filtro = null;
+
+function toast(t){ const e = $("toast"); e.textContent = t; e.classList.add("on"); setTimeout(()=>e.classList.remove("on"), 2600); }
+
+const ETIQ = { publicado:"Publicado", entregado:"Entregado", vivo:"En uso", "listo-sin-lanzar":"Listo, sin lanzar",
+  parcial:"A medias", prototipo:"Prototipo", parking:"En pausa", cerrado:"Cerrado" };
+
+/* ---------- datos ---------- */
+async function cargar(){
+  const [p, pr, en] = await Promise.all([
+    sb.from("pendientes").select("*").order("urgencia").order("id"),
+    sb.from("proyectos").select("*").order("destacado", { ascending:false }).order("nombre"),
+    sb.from("enlaces").select("*").order("seccion").order("orden")
+  ]);
+  if (p.error || pr.error) { $("off").hidden = false; const c = cache.get("datos"); if (c) datos = c; return; }
+  datos = { pendientes: p.data || [], proyectos: pr.data || [], enlaces: en.data || [] };
+  cache.set("datos", datos); $("off").hidden = true;
+}
+
+/* ---------- vistas ---------- */
+function vHoy(){
+  const abiertos = datos.pendientes.filter(x => x.estado === "abierto");
+  const orden = { alta:0, media:1, baja:2 };
+  abiertos.sort((a,b) => (orden[a.urgencia] ?? 3) - (orden[b.urgencia] ?? 3));
+  const alta = abiertos.filter(x => x.urgencia === "alta");
+  const bloq = datos.proyectos.filter(x => (x.bloqueantes || []).length).length;
+
+  let h = `<header><div><h1>Hoy</h1><div class="sub">${abiertos.length} decisiones abiertas · ${bloq} proyectos con bloqueo</div></div>
+    <button class="ghost" id="recargar">↻</button></header>`;
+
+  if (alta.length) {
+    h += `<div class="sub" style="margin:14px 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--stop)">Urgente</div>`;
+    alta.forEach(p => h += tarjetaPend(p));
+  }
+  const resto = abiertos.filter(x => x.urgencia !== "alta").slice(0, 6);
+  if (resto.length) {
+    h += `<div class="sub" style="margin:20px 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700">Después</div>`;
+    resto.forEach(p => h += tarjetaPend(p));
+  }
+  if (!abiertos.length) h += `<div class="vacio">Nada pendiente. Raro y hermoso.</div>`;
+  return h;
+}
+
+function tarjetaPend(p){
+  const ops = (p.opciones || []).map(o => `<div class="op"><b>${esc(o.opcion)}</b><span>${esc(o.implica)}</span></div>`).join("");
+  return `<div class="card" data-pid="${esc(p.id)}">
+    <div class="meta"><span class="pill u-${esc(p.urgencia)}">${esc(p.urgencia)}</span><span>${esc(p.sistema||"")}</span></div>
+    <h3 style="margin-top:7px">${esc(p.titulo)}</h3>
+    <div class="ctx" data-ctx>${esc(p.contexto)}</div>
+    ${p.recomendacion ? `<div class="op" style="margin-top:10px"><b>Recomendación</b><span>${esc(p.recomendacion)}</span></div>` : ""}
+    ${ops}
+    <div class="acc">
+      <button class="btn" data-resolver="${esc(p.id)}">Decidir</button>
+      <button class="btn sec" data-nota="${esc(p.id)}">Nota</button>
+    </div>
+  </div>`;
+}
+
+function vPend(){
+  const est = filtro || "abierto";
+  const lista = datos.pendientes.filter(x => est === "todos" ? true : x.estado === est);
+  let h = `<header><div><h1>Pendientes</h1><div class="sub">${lista.length} en vista</div></div></header>
+    <div class="filtros">
+      ${["abierto","resuelto","todos"].map(f => `<button data-f="${f}" class="${est===f?"on":""}">${f}</button>`).join("")}
+    </div>`;
+  h += lista.length ? lista.map(tarjetaPend).join("") : `<div class="vacio">Nada acá.</div>`;
+  return h;
+}
+
+function vProy(){
+  const cats = [...new Set(datos.proyectos.map(p => p.categoria))];
+  const lista = filtro ? datos.proyectos.filter(p => p.categoria === filtro) : datos.proyectos;
+  let h = `<header><div><h1>Proyectos</h1><div class="sub">${datos.proyectos.length} en el ecosistema</div></div></header>
+    <div class="filtros"><button data-c="" class="${!filtro?"on":""}">todos</button>
+    ${cats.map(c => `<button data-c="${esc(c)}" class="${filtro===c?"on":""}">${esc(c)}</button>`).join("")}</div>`;
+  h += lista.map(p => {
+    const bl = (p.bloqueantes || []).length;
+    const falta = (p.falta || []).slice(0, 2);
+    return `<div class="card">
+      <div class="meta"><span class="${"e-"+esc(p.estado)}" style="font-weight:700">${ETIQ[p.estado]||p.estado}</span><span>${esc(p.categoria)}</span><span>${p.avance}%</span></div>
+      <h3 style="margin-top:6px">${esc(p.nombre)}</h3>
+      <div class="bar"><i style="width:${p.avance}%"></i></div>
+      <div class="ctx" data-ctx style="margin-top:10px">${esc(p.resumen)}</div>
+      ${bl ? `<div class="op" style="margin-top:10px;border-left:3px solid var(--stop)"><b style="color:var(--stop)">Bloqueado</b><span>${esc(p.bloqueantes[0])}</span></div>` : ""}
+      ${falta.length ? `<div class="op" style="margin-top:8px"><b>Falta</b><span>${falta.map(esc).join(" · ")}</span></div>` : ""}
+      ${p.siguiente_paso ? `<div class="op" style="margin-top:8px"><b>Siguiente</b><span>${esc(p.siguiente_paso)}</span></div>` : ""}
+      ${(p.links||[]).filter(l=>l.url?.startsWith("http")).map(l=>`<div style="margin-top:9px"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.titulo)} ↗</a></div>`).join("")}
+    </div>`;
+  }).join("");
+  return h;
+}
+
+function vLinks(){
+  const secs = [...new Set(datos.enlaces.map(e => e.seccion))];
+  let h = `<header><div><h1>Accesos</h1><div class="sub">Todo lo mío</div></div>
+    <button class="ghost" id="tema">◐</button></header>`;
+  secs.forEach(s => {
+    h += `<div class="sub" style="margin:18px 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700">${esc(s)}</div>`;
+    datos.enlaces.filter(e => e.seccion === s).forEach(e => {
+      h += `<a class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px" href="${esc(e.url)}" target="_blank" rel="noopener">
+        <span style="font-size:21px">${esc(e.icono||"🔗")}</span>
+        <span style="flex:1;min-width:0"><b style="display:block;font-size:15px">${esc(e.titulo)}</b>
+        <span class="sub" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.subtitulo||"")}</span></span>
+        <span style="color:var(--muted)">›</span></a>`;
+    });
+  });
+  return h;
+}
+
+/* ---------- render ---------- */
+function render(){
+  $("app").innerHTML = { hoy:vHoy, pendientes:vPend, proyectos:vProy, links:vLinks }[vista]();
+  $("tabs").hidden = false;
+  $("tabs").innerHTML = [["hoy","🎯","Hoy"],["pendientes","📋","Pendientes"],["proyectos","🗂️","Proyectos"],["links","🔗","Accesos"]]
+    .map(([k,i,t]) => `<button data-v="${k}" class="${vista===k?"on":""}"><span class="i">${i}</span>${t}</button>`).join("");
+  cablear();
+}
+
+function cablear(){
+  document.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { vista = b.dataset.v; filtro = null; render(); });
+  document.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { filtro = b.dataset.f; render(); });
+  document.querySelectorAll("[data-c]").forEach(b => b.onclick = () => { filtro = b.dataset.c || null; render(); });
+  document.querySelectorAll("[data-ctx]").forEach(e => e.onclick = () => e.classList.toggle("open"));
+  const r = $("recargar"); if (r) r.onclick = async () => { r.textContent = "…"; await cargar(); render(); toast("Actualizado"); };
+  const t = $("tema"); if (t) t.onclick = () => {
+    const el = document.documentElement, a = el.getAttribute("data-t");
+    const osc = matchMedia("(prefers-color-scheme: dark)").matches;
+    el.setAttribute("data-t", a === "dark" ? "light" : a === "light" ? (osc?"dark":"light") : (osc?"light":"dark"));
+  };
+  document.querySelectorAll("[data-resolver]").forEach(b => b.onclick = () => resolver(b.dataset.resolver));
+  document.querySelectorAll("[data-nota]").forEach(b => b.onclick = () => nota(b.dataset.nota));
+}
+
+async function resolver(id){
+  const p = datos.pendientes.find(x => x.id === id);
+  const r = prompt(`${p.titulo}\n\n¿Qué decidiste?`, p.recomendacion || "");
+  if (r === null || !r.trim()) return;
+  const { error } = await sb.from("pendientes").update({
+    estado: "resuelto", respuesta: r.trim(), respondido_el: new Date().toISOString().slice(0,10), actualizado_en: new Date().toISOString()
+  }).eq("id", id);
+  if (error) return toast("No se pudo guardar: " + error.message);
+  toast("Decidido ✓"); await cargar(); render();
+}
+
+async function nota(id){
+  const t = prompt("Nota rápida:");
+  if (t === null || !t.trim()) return;
+  const { error } = await sb.from("notas").insert({ ref_tipo: "pendiente", ref_id: id, texto: t.trim() });
+  toast(error ? "No se pudo guardar" : "Nota guardada ✓");
+}
+
+/* ---------- auth ---------- */
+function login(msg){
+  $("tabs").hidden = true;
+  $("app").innerHTML = `<div class="login">
+    <h1>🎛️ Vega Cockpit</h1>
+    <p>${msg || "Todo tu ecosistema en un solo lugar. Entrá con tu mail y te llega un link."}</p>
+    <input id="mail" type="email" inputmode="email" autocomplete="email" placeholder="tu mail">
+    <button class="btn" id="enviar" style="width:100%;margin-top:12px;padding:13px">Enviarme el link</button>
+  </div>`;
+  $("enviar").onclick = async () => {
+    const email = $("mail").value.trim();
+    if (!email) return toast("Escribí tu mail");
+    $("enviar").textContent = "Enviando…";
+    const { error } = await sb.auth.signInWithOtp({ email, options:{ emailRedirectTo: location.href.split("#")[0] } });
+    $("enviar").textContent = "Enviarme el link";
+    toast(error ? "Error: " + error.message : "Listo — revisá tu mail");
+  };
+}
+
+async function arrancar(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if (!session) return login();
+  const c = cache.get("datos"); if (c) { datos = c; render(); }
+  await cargar(); render();
+}
+sb.auth.onAuthStateChange((_e, s) => { if (s) arrancar(); });
+arrancar();
+</script>
+</body>
+</html>
