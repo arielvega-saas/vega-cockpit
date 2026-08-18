@@ -8,7 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cockpit">
 <meta name="theme-color" content="#141613">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23141613'/%3E%3Ctext x='90' y='122' font-size='96' text-anchor='middle'%3E%F0%9F%8E%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icono-192.png">
+<link rel="icon" type="image/png" href="icono-192.png">
 <style>
   :root{
     --bg:#FAFAF7; --card:#FFF; --card2:#F0F0EA; --ink:#191B18; --muted:#6B6F68;
@@ -119,6 +121,14 @@ async function cargar(){
   if (p.error || pr.error) { $("off").hidden = false; const c = cache.get("datos"); if (c) datos = c; return; }
   datos = { pendientes: p.data || [], proyectos: pr.data || [], enlaces: en.data || [] };
   cache.set("datos", datos); $("off").hidden = true;
+  insignia();
+}
+
+/* Globito rojo en el ícono con las decisiones urgentes sin resolver.
+   Solo funciona con la app agregada a la pantalla de inicio. */
+function insignia(){
+  const n = datos.pendientes.filter(x => x.estado === "abierto" && x.urgencia === "alta").length;
+  try { n ? navigator.setAppBadge?.(n) : navigator.clearAppBadge?.(); } catch {}
 }
 
 /* ---------- vistas ---------- */
@@ -280,6 +290,17 @@ async function arrancar(){
 }
 sb.auth.onAuthStateChange((_e, s) => { if (s) arrancar(); });
 arrancar();
+
+// Service worker: abre al instante y anda sin señal.
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+// Al volver a la app, refrescar (una decisión puede haberse resuelto en la Mac).
+addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && (await sb.auth.getSession()).data.session) {
+    await cargar(); render();
+  }
+});
 </script>
 </body>
 </html>
