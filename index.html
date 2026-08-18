@@ -264,22 +264,28 @@ async function nota(id){
 }
 
 /* ---------- auth ---------- */
+/* Mail + contraseña a propósito: el magic link abre en el NAVEGADOR (la sesión
+   queda ahí, no en la app instalada) y el mailer de Supabase corta a los 3
+   envíos por hora. Lección de La Posta — ver leccion-auth-sin-mail del harness. */
 function login(msg){
   $("tabs").hidden = true;
   $("app").innerHTML = `<div class="login">
     <h1>🎛️ Vega Cockpit</h1>
-    <p>${msg || "Todo tu ecosistema en un solo lugar. Entrá con tu mail y te llega un link."}</p>
-    <input id="mail" type="email" inputmode="email" autocomplete="email" placeholder="tu mail">
-    <button class="btn" id="enviar" style="width:100%;margin-top:12px;padding:13px">Enviarme el link</button>
+    <p>${msg || "Todo tu ecosistema en un solo lugar."}</p>
+    <input id="mail" type="email" inputmode="email" autocomplete="username" placeholder="mail" value="vegaariel976@gmail.com">
+    <input id="clave" type="password" autocomplete="current-password" placeholder="contraseña" style="margin-top:10px">
+    <button class="btn" id="entrar" style="width:100%;margin-top:12px;padding:13px">Entrar</button>
   </div>`;
-  $("enviar").onclick = async () => {
-    const email = $("mail").value.trim();
-    if (!email) return toast("Escribí tu mail");
-    $("enviar").textContent = "Enviando…";
-    const { error } = await sb.auth.signInWithOtp({ email, options:{ emailRedirectTo: location.href.split("#")[0] } });
-    $("enviar").textContent = "Enviarme el link";
-    toast(error ? "Error: " + error.message : "Listo — revisá tu mail");
+  const ir = async () => {
+    const email = $("mail").value.trim(), password = $("clave").value;
+    if (!email || !password) return toast("Completá mail y contraseña");
+    $("entrar").textContent = "Entrando…";
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    $("entrar").textContent = "Entrar";
+    if (error) toast("Mail o contraseña incorrectos");
   };
+  $("entrar").onclick = ir;
+  $("clave").addEventListener("keydown", e => { if (e.key === "Enter") ir(); });
 }
 
 async function arrancar(){
