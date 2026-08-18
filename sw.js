@@ -1,6 +1,6 @@
 // Service worker del Cockpit: cachea el caparazón para que abra al instante
 // y funcione sin señal. Los datos vienen de Supabase (y del cache de la app).
-const CACHE = "cockpit-v1";
+const CACHE = "cockpit-v2";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icono-192.png", "./icono-512.png"];
 
 self.addEventListener("install", e => {
